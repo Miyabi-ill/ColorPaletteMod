@@ -1,7 +1,9 @@
 using Microsoft.Xna.Framework;
+using System;
 using System.Collections.Generic;
 using Terraria;
 using Terraria.GameInput;
+using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.ModLoader.IO;
 using Terraria.UI;
@@ -69,6 +71,58 @@ namespace ColorPalette
 
     public class ColorPaletteUIPlayer : ModPlayer
     {
+        public override void OnEnterWorld(Player player)
+        {
+            if (player.whoAmI == Main.myPlayer)
+            {
+                List<ColorData> remove = new List<ColorData>();
+
+                var ui = ((ColorPalette)mod).colorPaletteUI;
+                ui.colorGrid.Clear();
+                foreach (var data in ui.currentIO.datas)
+                {
+                    Item item = new Item();
+                    if (data.id < ItemID.Count)
+                    {
+                        item.SetDefaults(data.id);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            var split = data.fullName.Split(new char[] { '.' });
+                            var modItem = ModLoader.GetMod(split[0])?.GetItem(split[1]);
+                            if (modItem != null)
+                            {
+                                item = modItem.item;
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            mod.Logger.Warn(string.Format("Something went wrong during loading item: {0}. This will remove.", data.fullName), e);
+                            remove.Add(data);
+                        }
+                    }
+                    if (item.type != 0)
+                    {
+                        var colorUI = new ColorPanel(item, data.paint)
+                        {
+                            colorData = data
+                        };
+                        colorUI.Initialize();
+                        ui.colorGrid.Add(colorUI);
+                    }
+                }
+
+                foreach (var rmv in remove)
+                {
+                    ((ColorPalette)mod).colorPaletteUI.currentIO.datas.Remove(rmv);
+                }
+
+                ui.colorGrid.Add(ui.createColorButton);
+            }
+        }
+
         public override void ProcessTriggers(TriggersSet triggersSet)
         {
             if (player.whoAmI == Main.myPlayer && ColorPalette.ColorPaletteToggleKey.JustPressed)

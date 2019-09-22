@@ -6,8 +6,9 @@ using Terraria.ID;
 using Terraria.Map;
 using Microsoft.Xna.Framework;
 using System.Reflection;
-using Terraria.ModLoader.IO;
-using Terraria.ModLoader.UI.Elements;
+using System;
+using System.Linq;
+using System.Collections;
 
 namespace ColorPalette
 {
@@ -15,14 +16,17 @@ namespace ColorPalette
     {
         public static bool Visible { get; set; }
 
-        public UIPanel colorPalettePanel;
+        public MouseBlockPanel colorPalettePanel;
         public UITextPanel<string> paletteTitle;
-        public UIList colorList;
+        internal LazyUpdatableGrid colorGrid;
 
         internal PaletteIO currentIO;
 
-        public UITextPanel<string> createColorButton;
-        private const string CreateButtonDefaultText = "Add selecting color";
+        public UIImageButton createColorButton;
+        public UITextPanel<string> deleteColorButton;
+        public UIText tileInfoText;
+
+        public ColorPanel selectedPanel = null;
 
         public override void OnInitialize()
         {
@@ -43,12 +47,14 @@ namespace ColorPalette
                 }
             }
 
-            colorPalettePanel = new UIPanel()
+            colorPalettePanel = new MouseBlockPanel()
             {
-                Top = new StyleDimension(Main.screenHeight / 2, 0f),
-                Left = new StyleDimension(Main.screenWidth - 500, 0f),
-                Width = new StyleDimension(300, 0f),
-                Height = new StyleDimension(500f, 0f)
+                HAlign = 1f,
+                Top = new StyleDimension(85f, 0f),
+                Left = new StyleDimension(-40f, 0f),
+                Width = new StyleDimension(260f, 0f),
+                Height = new StyleDimension(-125f, 1f),
+                BackgroundColor = new Color(73, 94, 171)
             };
             Append(colorPalettePanel);
 
@@ -59,73 +65,63 @@ namespace ColorPalette
                 Width = new StyleDimension(-40, 1f),
                 Height = new StyleDimension(40, 0f),
                 BackgroundColor = new Color(73, 94, 171)
-        };
+            };
             colorPalettePanel.Append(paletteTitle);
 
             var scrollbar = new Terraria.GameContent.UI.Elements.FixedUIScrollbar(ColorPalette.instance.userInterface)
             {
-                Height = new StyleDimension(-15f, 1f),
-                HAlign = 1f,
-                VAlign = 1f
+                Top = new StyleDimension(15f, 0f),
+                Height = new StyleDimension(-75f, 1f),
+                HAlign = 1f
             };
             scrollbar.SetView(100f, 1000f);
             colorPalettePanel.Append(scrollbar);
 
-            colorList = new UIList
+            colorGrid = new LazyUpdatableGrid()
             {
+                ListPadding = 2f,
+                Top = new StyleDimension(15f, 0f),
                 Width = new StyleDimension(-25f, 1f),
-                Height = new StyleDimension(-15f, 1f),
-                ListPadding = 5f,
-                VAlign = 1f
+                Height = new StyleDimension(-60f, 1f)
             };
-            colorList.SetScrollbar(scrollbar);
-            colorPalettePanel.Append(colorList);
+            colorGrid.SetScrollbar(scrollbar);
+            colorPalettePanel.Append(colorGrid);
 
-            ColorUI.parentUI = this;
-            ColorUI.parentList = colorList;
+            ColorPanel.parentUI = this;
+            ColorPanel.parentGrid = colorGrid;
 
-            foreach (var data in currentIO.datas)
+            deleteColorButton = new UITextPanel<string>("Delete")
             {
-                Item item = new Item();
-                if (data.id < ItemID.Count)
-                {
-                    item.SetDefaults(data.id);
-                }
-                else
-                {
-                    ModContent.SplitName(data.fullName, out string modName, out string itemName);
-                    var modItem = ModLoader.GetMod(modName)?.GetItem(itemName);
-                    if (modItem != null)
-                    {
-                        item = modItem.item;
-                    }
-                }
-                if (item.type != 0)
-                {
-                    var colorUI = new ColorUI(item, data.paint)
-                    {
-                        colorData = data
-                    };
-                    colorList.Add(colorUI);
-                }
-            }
-
-            createColorButton = new UITextPanel<string>(CreateButtonDefaultText)
-            {
-                Width = new StyleDimension(0f, 1f),
+                HAlign = 1f,
+                VAlign = 1f,
+                Width = new StyleDimension(50f, 0f),
                 Height = new StyleDimension(30f, 0f)
             };
+            deleteColorButton.OnMouseOver += (x, y) => deleteColorButton.BackgroundColor = new Color(73, 94, 171);
+            deleteColorButton.OnMouseOut += (x, y) => deleteColorButton.BackgroundColor = new Color(63, 82, 151) * 0.7f;
+            deleteColorButton.OnClick += DeleteColorButton_OnClick;
+            colorPalettePanel.Append(deleteColorButton);
+
+            tileInfoText = new UIText("No tile selected.")
+            {
+                VAlign = 1f,
+                Height = new StyleDimension(60f, 0f)
+            };
+            colorPalettePanel.Append(tileInfoText);
+
+            createColorButton = new UIImageButton(ColorPalette.instance.GetTexture("CreateButton"));
             createColorButton.OnClick += CreateColorButton_OnClick;
-            colorList.Add(createColorButton);
+            colorGrid.Add(createColorButton);
         }
 
-        public override void Update(GameTime gameTime)
+        private void DeleteColorButton_OnClick(UIMouseEvent evt, UIElement listeningElement)
         {
-            base.Update(gameTime);
-
-            if (ContainsPoint(Main.MouseScreen))
+            if (selectedPanel != null)
             {
-                Main.LocalPlayer.mouseInterface = true;
+                colorGrid.Remove(selectedPanel);
+                currentIO.datas.Remove(selectedPanel.colorData);
+                tileInfoText.SetText("No tile selected.");
+                selectedPanel = null;
             }
         }
 
@@ -141,7 +137,7 @@ namespace ColorPalette
                 Main.NewText("Please select valid tile/wall.");
                 return;
             }
-            colorList.Remove(createColorButton);
+            colorGrid.Remove(createColorButton);
             byte paintColor = 0;
             if (Main.LocalPlayer.autoPaint && Main.LocalPlayer.builderAccStatus[3] == 0)
             {
@@ -153,25 +149,24 @@ namespace ColorPalette
                     }
                 }
             }
-            var colorUI = new ColorUI(selectedItem, paintColor);
+            var colorUI = new ColorPanel(selectedItem, paintColor);
             currentIO.datas.Add(colorUI.colorData);
             colorUI.Initialize();
-            colorList.Add(colorUI);
-            colorList.Add(createColorButton);
+            colorGrid.Add(colorUI);
+            colorGrid.Add(createColorButton);
         }
     }
 
-    class ColorUI : UIPanel
+    class ColorPanel : UIPanel
     {
-        internal static UIList parentList;
+        internal static LazyUpdatableGrid parentGrid;
         internal static ColorPaletteUI parentUI;
 
         private static FieldInfo colorLookupInfo;
 
-        public UIPanel colorPreview;
-        public UITextPanel<string> tileInfoUI;
-
-        public UIImageButton deleteButton;
+        private static readonly Type mapLoaderType = typeof(ModTile).Assembly.DefinedTypes.First(x => x.Name == "MapLoader");
+        private static FieldInfo wallEntries;
+        private static FieldInfo tileEntries;
 
         public Item PaletteItem { get; private set; }
         public byte PaintColor { get; private set; }
@@ -180,7 +175,10 @@ namespace ColorPalette
 
         internal ColorData colorData;
 
-        public ColorUI(Item item, byte paint = 0)
+        private Vector2 offset;
+        public bool dragging;
+
+        public ColorPanel(Item item, byte paint = 0)
         {
             PaletteItem = item.Clone();
             PaintColor = paint;
@@ -188,6 +186,15 @@ namespace ColorPalette
             {
                 colorLookupInfo = typeof(MapHelper).GetField("colorLookup", BindingFlags.Static | BindingFlags.NonPublic);
             }
+            if (wallEntries == null)
+            {
+                wallEntries = mapLoaderType.GetField("wallEntries", BindingFlags.Static | BindingFlags.NonPublic);
+            }
+            if (tileEntries == null)
+            {
+                tileEntries = mapLoaderType.GetField("tileEntries", BindingFlags.Static | BindingFlags.NonPublic);
+            }
+
             mapColor = ItemToMapColor(PaletteItem);
 
             if (PaintColor > 0)
@@ -219,9 +226,9 @@ namespace ColorPalette
                     case 30:
                         if (PaletteItem.createWall != -1)
                         {
-                            mapColor.R = (byte)((float)(255 - mapColor.R) * 0.5f);
-                            mapColor.G = (byte)((float)(255 - mapColor.G) * 0.5f);
-                            mapColor.B = (byte)((float)(255 - mapColor.B) * 0.5f);
+                            mapColor.R = (byte)((255 - mapColor.R) * 0.5f);
+                            mapColor.G = (byte)((255 - mapColor.G) * 0.5f);
+                            mapColor.B = (byte)((255 - mapColor.B) * 0.5f);
                         }
                         else
                         {
@@ -233,13 +240,14 @@ namespace ColorPalette
                     default:
                         {
                             float num5 = num;
-                            mapColor.R = (byte)((float)(int)color.R * num5);
-                            mapColor.G = (byte)((float)(int)color.G * num5);
-                            mapColor.B = (byte)((float)(int)color.B * num5);
+                            mapColor.R = (byte)(color.R * num5);
+                            mapColor.G = (byte)(color.G * num5);
+                            mapColor.B = (byte)(color.B * num5);
                             break;
                         }
                 }
             }
+            mapColor.A = 255;
 
             string fullName = item.Name;
             if (item.modItem != null)
@@ -257,50 +265,73 @@ namespace ColorPalette
 
         public override void OnInitialize()
         {
-            Width = new StyleDimension(0f, 1f);
-            Height = new StyleDimension(85f, 0f);
+            Width = new StyleDimension(30, 0f);
+            Height = new StyleDimension(30, 0f);
+            BackgroundColor = mapColor;
+        }
 
-            colorPreview = new UIPanel()
-            {
-                Width = new StyleDimension(40, 0f),
-                Height = new StyleDimension(40, 0f),
-                BackgroundColor = mapColor
-            };
-            Append(colorPreview);
+        public override void MouseDown(UIMouseEvent evt)
+        {
+            base.MouseDown(evt);
+            DragStart(evt);
+        }
 
-            tileInfoUI = new UITextPanel<string>("", 0.75f)
+        public override void MouseUp(UIMouseEvent evt)
+        {
+            base.MouseUp(evt);
+            DragEnd(evt);
+        }
+
+        private void DragStart(UIMouseEvent evt)
+        {
+            offset = new Vector2(evt.MousePosition.X - Left.Pixels, evt.MousePosition.Y - Top.Pixels);
+            dragging = true;
+            parentGrid.LazyUpdateElement(this);
+        }
+
+        private void DragEnd(UIMouseEvent evt)
+        {
+            Vector2 end = evt.MousePosition;
+            dragging = false;
+
+            var element = parentGrid.GetElementAt(end);
+            if (element != null && element != this)
             {
-                Left = new StyleDimension(50, 0f),
-                Width = new StyleDimension(150, 0f),
-                Height = new StyleDimension(60, 0f)
-            };
-            if (PaintColor == 0)
-            {
-                tileInfoUI.SetText(PaletteItem.Name);
+                int index = parentGrid.IndexOf(element);
+                if (index != -1)
+                {
+                    parentGrid.Remove(this);
+                    parentGrid.Insert(index, this);
+                    parentUI.currentIO.datas.Remove(colorData);
+                    parentUI.currentIO.datas.Insert(index, colorData);
+                }
             }
-            else
-            {
-                var item = new Item();
-                item.SetDefaults(PaintID2ItemID(PaintColor));
-                tileInfoUI.SetText(PaletteItem.Name + "\n" + item.Name);
-            }
-            Append(tileInfoUI);
+        }
 
-            deleteButton = new UIImageButton(ModContent.GetTexture("Terraria/UI/ButtonDelete"))
+        public override void Update(GameTime gameTime)
+        {
+            base.Update(gameTime);
+
+            if (dragging)
             {
-                HAlign = 1f,
-                VAlign = 1f
-            };
-            deleteButton.OnClick += (x, y) =>
+                Left.Set(Main.mouseX - offset.X, 0f);
+                Top.Set(Main.mouseY - offset.Y, 0f);
+                Recalculate();
+            }
+
+            var parentSpace = Parent.GetDimensions().ToRectangle();
+            if (!GetDimensions().ToRectangle().Intersects(parentSpace))
             {
-                parentList.Remove(this);
-                parentUI.currentIO.datas.Remove(colorData);
-            };
-            Append(deleteButton);
+                Left.Pixels = Utils.Clamp(Left.Pixels, 0, parentSpace.Right - Width.Pixels);
+                Top.Pixels = Utils.Clamp(Top.Pixels, 0, parentSpace.Bottom - Height.Pixels);
+                Recalculate();
+            }
         }
 
         public override void Click(UIMouseEvent evt)
         {
+            Main.PlaySound(SoundID.MenuTick);
+
             int index = -1;
             bool success = true;
 
@@ -319,6 +350,7 @@ namespace ColorPalette
             }
 
             int paintIndex = -1;
+            string paintName = "";
             if (PaintColor == 0)
             {
                 Main.LocalPlayer.autoPaint = false;
@@ -326,6 +358,10 @@ namespace ColorPalette
             }
             else
             {
+                var paintItem = new Item();
+                paintItem.SetDefaults(PaintID2ItemID(PaintColor));
+                paintName = paintItem.Name;
+
                 for (int i = 0; i < 50; i++)
                 {
                     if (Main.LocalPlayer.inventory[i].paint == PaintColor && Main.LocalPlayer.inventory[i].stack > 0)
@@ -337,9 +373,7 @@ namespace ColorPalette
                 if (paintIndex == -1)
                 {
                     success = false;
-                    var paintItem = new Item();
-                    paintItem.SetDefaults(PaintID2ItemID(PaintColor));
-                    Main.NewText(string.Format("You don\'t have {0}.", paintItem.Name));
+                    Main.NewText(string.Format("You don\'t have {0}.", paintName));
                 }
             }
 
@@ -353,6 +387,9 @@ namespace ColorPalette
                     Main.LocalPlayer.builderAccStatus[3] = 0;
                 }
                 Main.LocalPlayer.selectedItem = 1;
+                parentUI.selectedPanel = this;
+                string text = PaintColor == 0 ? PaletteItem.Name : PaletteItem.Name + "\n" + paintName;
+                parentUI.tileInfoText.SetText(text);
             }
             base.Click(evt);
         }
@@ -432,13 +469,90 @@ namespace ColorPalette
             int id = 0;
             if (item.createTile != -1)
             {
-                id = MapHelper.tileLookup[item.createTile];
+                if (item.modItem == null)
+                {
+                    id = MapHelper.tileLookup[item.createTile];
+                }
+                else
+                {
+                    try
+                    {
+                        var entries = ((IEnumerable)tileEntries.GetValue(null));
+                        PropertyInfo keyInfo = null;
+                        PropertyInfo valueInfo = null;
+                        foreach (object entry in entries)
+                        {
+                            if (keyInfo == null)
+                            {
+                                keyInfo = entry.GetType().GetProperty("Key");
+                                valueInfo = entry.GetType().GetProperty("Value");
+                            }
+                            if ((ushort)keyInfo.GetValue(entry) == item.createTile)
+                            {
+                                var entryList = (IEnumerable)valueInfo.GetValue(entry);
+                                foreach (var trueEntry in entryList)
+                                {
+                                    return (Color)trueEntry.GetType().GetField("color", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(trueEntry);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        return Color.Transparent;
+                    }
+                }
             }
             if (item.createWall != -1)
             {
-                id = MapHelper.wallLookup[item.createWall];
+                if (item.modItem == null)
+                {
+                    id = MapHelper.wallLookup[item.createWall];
+                }
+                else
+                {
+                    try
+                    {
+                        var entries = ((IEnumerable)wallEntries.GetValue(null));
+                        PropertyInfo keyInfo = null;
+                        PropertyInfo valueInfo = null;
+                        foreach (object entry in entries)
+                        {
+                            if (keyInfo == null)
+                            {
+                                keyInfo = entry.GetType().GetProperty("Key");
+                                valueInfo = entry.GetType().GetProperty("Value");
+                            }
+                            if ((ushort)keyInfo.GetValue(entry) == item.createWall)
+                            {
+                                var entryList = (IEnumerable)valueInfo.GetValue(entry);
+                                foreach (var trueEntry in entryList)
+                                {
+                                    return (Color)trueEntry.GetType().GetField("color", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(trueEntry);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        return Color.Transparent;
+                    }
+                }
             }
             return colorLookup[id];
+        }
+    }
+
+    class MouseBlockPanel : UIPanel
+    {
+        public override void Update(GameTime gameTime)
+        {
+            if (ContainsPoint(Main.MouseScreen))
+            {
+                Main.LocalPlayer.mouseInterface = true;
+            }
+
+            base.Update(gameTime);
         }
     }
 }
