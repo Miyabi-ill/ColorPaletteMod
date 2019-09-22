@@ -1,0 +1,3 @@
+displayName = Tile color palette for pixel artist
+author = Miyabi
+version = 0.1
