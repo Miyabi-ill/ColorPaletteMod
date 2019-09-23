@@ -17,6 +17,9 @@ namespace ColorPalette
         [JsonIgnore]
         public static List<PaletteIO> palettes = new List<PaletteIO>();
 
+        [JsonIgnore]
+        public static PaletteIO instance;
+
         public static void ReadAllPalette()
         {
             string directory = Path.Combine(Main.SavePath, "Palettes");
@@ -24,7 +27,7 @@ namespace ColorPalette
             {
                 Directory.CreateDirectory(directory);
             }
-            var paths = Directory.GetFiles(directory);
+            var paths = Directory.GetFiles(directory, "*.json");
             foreach (var path in paths)
             {
                 using (var stream = new StreamReader(path))
@@ -33,10 +36,25 @@ namespace ColorPalette
                     palettes.Add(palette);
                 }
             }
+
+            if (palettes.Count == 0)
+            {
+                instance = new PaletteIO()
+                {
+                    name = "palette",
+                    requireSave = true
+                };
+                palettes.Add(instance);
+            }
+            else
+            {
+                instance = palettes[0];
+            }
         }
 
         public static void SaveAllPalette()
         {
+            instance.datas = ColorPalette.instance.colorPaletteUI.GetDatas();
             string directory = Path.Combine(Main.SavePath, "Palettes");
             if (!Directory.Exists(directory))
             {

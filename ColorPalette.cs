@@ -79,7 +79,7 @@ namespace ColorPalette
 
                 var ui = ((ColorPalette)mod).colorPaletteUI;
                 ui.colorGrid.Clear();
-                foreach (var data in ui.currentIO.datas)
+                foreach (var data in PaletteIO.instance.datas)
                 {
                     Item item = new Item();
                     if (data.id < ItemID.Count)
@@ -112,11 +112,6 @@ namespace ColorPalette
                         colorUI.Initialize();
                         ui.colorGrid.Add(colorUI);
                     }
-                }
-
-                foreach (var rmv in remove)
-                {
-                    ((ColorPalette)mod).colorPaletteUI.currentIO.datas.Remove(rmv);
                 }
 
                 ui.colorGrid.Add(ui.createColorButton);

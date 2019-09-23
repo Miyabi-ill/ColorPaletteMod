@@ -10,6 +10,7 @@ using System;
 using System.Linq;
 using System.Collections;
 using Microsoft.Xna.Framework.Graphics;
+using System.Collections.Generic;
 
 namespace ColorPalette
 {
@@ -21,8 +22,6 @@ namespace ColorPalette
         public UITextPanel<string> paletteTitle;
         internal LazyUpdatableGrid colorGrid;
 
-        internal PaletteIO currentIO;
-
         public UIImageButton createColorButton;
         public UITextPanel<string> deleteColorButton;
         public UIText tileInfoText;
@@ -31,23 +30,6 @@ namespace ColorPalette
 
         public override void OnInitialize()
         {
-            if (currentIO == null)
-            {
-                if (PaletteIO.palettes.Count >= 1)
-                {
-                    currentIO = PaletteIO.palettes[0];
-                }
-                else
-                {
-                    currentIO = new PaletteIO()
-                    {
-                        name = "palette",
-                        requireSave = true
-                    };
-                    PaletteIO.palettes.Add(currentIO);
-                }
-            }
-
             colorPalettePanel = new UIPanel()
             {
                 HAlign = 1f,
@@ -129,7 +111,6 @@ namespace ColorPalette
             if (selectedPanel != null)
             {
                 colorGrid.Remove(selectedPanel);
-                currentIO.datas.Remove(selectedPanel.colorData);
                 tileInfoText.SetText("No tile selected.");
                 selectedPanel = null;
             }
@@ -161,10 +142,22 @@ namespace ColorPalette
                 }
             }
             var colorUI = new ColorPanel(selectedItem, paintColor);
-            currentIO.datas.Add(colorUI.colorData);
             colorUI.Activate();
             colorGrid.Add(colorUI);
             colorGrid.Add(createColorButton);
+        }
+
+        public List<ColorData> GetDatas()
+        {
+            List<ColorData> datas = new List<ColorData>();
+            foreach (UIElement element in colorGrid._items)
+            {
+                if (element is ColorPanel panel)
+                {
+                    datas.Add(panel.colorData);
+                }
+            }
+            return datas;
         }
     }
 
@@ -313,8 +306,6 @@ namespace ColorPalette
                 {
                     parentGrid.Remove(this);
                     parentGrid.Insert(index, this);
-                    parentUI.currentIO.datas.Remove(colorData);
-                    parentUI.currentIO.datas.Insert(index, colorData);
                 }
             }
         }
@@ -388,20 +379,21 @@ namespace ColorPalette
                 }
             }
 
-            if (success)
+            if (index != -1)
             {
                 Utils.Swap(ref Main.LocalPlayer.inventory[index], ref Main.LocalPlayer.inventory[1]);
-                if (paintIndex != -1)
-                {
-                    Utils.Swap(ref Main.LocalPlayer.inventory[paintIndex], ref Main.LocalPlayer.inventory[0]);
-                    Main.LocalPlayer.autoPaint = true;
-                    Main.LocalPlayer.builderAccStatus[3] = 0;
-                }
                 Main.LocalPlayer.selectedItem = 1;
-                parentUI.selectedPanel = this;
-                string text = PaintColor == 0 ? PaletteItem.Name : PaletteItem.Name + "\n" + paintName;
-                parentUI.tileInfoText.SetText(text);
             }
+            if (paintIndex != -1)
+            {
+                Utils.Swap(ref Main.LocalPlayer.inventory[paintIndex], ref Main.LocalPlayer.inventory[0]);
+                Main.LocalPlayer.autoPaint = true;
+                Main.LocalPlayer.builderAccStatus[3] = 0;
+            }
+            parentUI.selectedPanel = this;
+            string text = PaintColor == 0 ? PaletteItem.Name : PaletteItem.Name + "\n" + paintName;
+            parentUI.tileInfoText.SetText(text);
+
             base.Click(evt);
         }
 
@@ -524,7 +516,7 @@ namespace ColorPalette
                 {
                     try
                     {
-                        var entries = ((IEnumerable)wallEntries.GetValue(null));
+                        var entries = (IEnumerable)wallEntries.GetValue(null);
                         PropertyInfo keyInfo = null;
                         PropertyInfo valueInfo = null;
                         foreach (object entry in entries)
