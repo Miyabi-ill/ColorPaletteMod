@@ -9,6 +9,7 @@ using System.Reflection;
 using System;
 using System.Linq;
 using System.Collections;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace ColorPalette
 {
@@ -16,7 +17,7 @@ namespace ColorPalette
     {
         public static bool Visible { get; set; }
 
-        public MouseBlockPanel colorPalettePanel;
+        public UIPanel colorPalettePanel;
         public UITextPanel<string> paletteTitle;
         internal LazyUpdatableGrid colorGrid;
 
@@ -47,7 +48,7 @@ namespace ColorPalette
                 }
             }
 
-            colorPalettePanel = new MouseBlockPanel()
+            colorPalettePanel = new UIPanel()
             {
                 HAlign = 1f,
                 Top = new StyleDimension(85f, 0f),
@@ -68,7 +69,7 @@ namespace ColorPalette
             };
             colorPalettePanel.Append(paletteTitle);
 
-            var scrollbar = new Terraria.GameContent.UI.Elements.FixedUIScrollbar(ColorPalette.instance.userInterface)
+            var scrollbar = new FixedUIScrollbar(ColorPalette.instance.userInterface)
             {
                 Top = new StyleDimension(15f, 0f),
                 Height = new StyleDimension(-75f, 1f),
@@ -114,6 +115,15 @@ namespace ColorPalette
             colorGrid.Add(createColorButton);
         }
 
+        protected override void DrawSelf(SpriteBatch spriteBatch)
+        {
+            if (colorPalettePanel.ContainsPoint(Main.MouseScreen))
+            {
+                Main.LocalPlayer.mouseInterface = true;
+            }
+            base.DrawSelf(spriteBatch);
+        }
+
         private void DeleteColorButton_OnClick(UIMouseEvent evt, UIElement listeningElement)
         {
             if (selectedPanel != null)
@@ -134,7 +144,7 @@ namespace ColorPalette
             Item selectedItem = Main.mouseItem.type == 0 ? Main.LocalPlayer.inventory[Main.LocalPlayer.selectedItem] : Main.mouseItem;
             if (selectedItem == null || selectedItem.type == 0 || selectedItem.stack <= 0 || (selectedItem.createTile == -1 && selectedItem.createWall == -1))
             {
-                Main.NewText("Please select valid tile/wall.");
+                Main.NewText("Please select a valid tile/wall.");
                 return;
             }
             colorGrid.Remove(createColorButton);
@@ -146,12 +156,13 @@ namespace ColorPalette
                     if (Main.LocalPlayer.inventory[i].paint > 0 && Main.LocalPlayer.inventory[i].stack > 0)
                     {
                         paintColor = Main.LocalPlayer.inventory[i].paint;
+                        break;
                     }
                 }
             }
             var colorUI = new ColorPanel(selectedItem, paintColor);
             currentIO.datas.Add(colorUI.colorData);
-            colorUI.Initialize();
+            colorUI.Activate();
             colorGrid.Add(colorUI);
             colorGrid.Add(createColorButton);
         }
@@ -298,7 +309,7 @@ namespace ColorPalette
             if (element != null && element != this)
             {
                 int index = parentGrid.IndexOf(element);
-                if (index != -1)
+                if (index != -1 && index < parentGrid.Count)
                 {
                     parentGrid.Remove(this);
                     parentGrid.Insert(index, this);
@@ -540,19 +551,6 @@ namespace ColorPalette
                 }
             }
             return colorLookup[id];
-        }
-    }
-
-    class MouseBlockPanel : UIPanel
-    {
-        public override void Update(GameTime gameTime)
-        {
-            if (ContainsPoint(Main.MouseScreen))
-            {
-                Main.LocalPlayer.mouseInterface = true;
-            }
-
-            base.Update(gameTime);
         }
     }
 }

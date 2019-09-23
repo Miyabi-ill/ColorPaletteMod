@@ -99,7 +99,7 @@ namespace ColorPalette
                         }
                         catch (Exception e)
                         {
-                            mod.Logger.Warn(string.Format("Something went wrong during loading item: {0}. This will remove.", data.fullName), e);
+                            mod.Logger.Warn(string.Format("Something went wrong while loading item: {0}. This will be removed.", data.fullName), e);
                             remove.Add(data);
                         }
                     }

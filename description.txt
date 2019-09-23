@@ -1,1 +1,6 @@
-Tile color palette for pixel artist is a pretty cool mod, it does...this. Modify this file with a description of your mod.
+This mod provides tile palette, allowing easy access to place many kinds of tiles with or without a paint on them.
+How to use:
+1. Set a hotkey to toggle visibility of the palette.
+2. Click white-based red cross icon ("Add preset" button) to register a selected tile in your inventory. A paint at bottom rightmost in your inventory will be applied while Paint Sprayer is on.
+3. Click colored icon to select a registered tile preset in your inventory. Note that the color on the palette is one shown in the map menu.
+4. (Additional) Click "Delete" button on the bottom right to delete a selected tile preset. You can also sort tile presets by dragging and dropping the icons.
